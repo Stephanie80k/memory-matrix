@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memory Matrix 🧠</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #10152d, #303875);
+    color: white;
+}
+
+.game {
+    width: min(650px, 100%);
+    text-align: center;
+    background: rgba(255,255,255,0.08);
+    padding: 28px;
+    border-radius: 25px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+}
+
+h1 {
+    margin: 0 0 5px;
+    font-size: 40px;
+}
+
+.subtitle {
+    opacity: 0.8;
+    margin-bottom: 20px;
+}
+
+.stats {
+    display: flex;
+    justify-content: space-around;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.stat {
+    background: rgba(255,255,255,0.1);
+    padding: 10px 15px;
+    border-radius: 14px;
+    min-width: 90px;
+}
+
+.stat b {
+    display: block;
+    font-size: 22px;
+    margin-top: 4px;
+}
+
+#message {
+    min-height: 30px;
+    font-weight: bold;
+    margin: 15px;
+}
+
+#grid {
+    display: grid;
+    gap: 10px;
+    width: min(460px, 100%);
+    margin: 0 auto 20px;
+}
+
+.cell {
+    aspect-ratio: 1;
+    border: none;
+    border-radius: 15px;
+    cursor: pointer;
+    background: #5c6594;
+    transition: transform 0.12s, background 0.15s;
+}
+
+.cell:hover {
+    transform: scale(1.04);
+}
+
+.cell.lit {
+    background: #67e8f9;
+    box-shadow: 0 0 25px #67e8f9;
+}
+
+.cell.correct {
+    background: #55df91;
+}
+
+.cell.wrong {
+    background: #ff6677;
+}
+
+.cell.disabled {
+    cursor: default;
+    pointer-events: none;
+}
+
+#start {
+    border: none;
+    border-radius: 12px;
+    padding: 13px 25px;
+    font-size: 17px;
+    font-weight: bold;
+    cursor: pointer;
+    background: white;
+    color: #171b38;
+}
+
+#start:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.info {
+    font-size: 13px;
+    opacity: 0.65;
+    margin-top: 15px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="game">
+
+    <h1>🧠 Memory Matrix</h1>
+
+    <div class="subtitle">
+        Remember the glowing squares, then tap them!
+    </div>
+
+    <div class="stats">
+
+        <div class="stat">
+            Level
+            <b id="level">1</b>
+        </div>
+
+        <div class="stat">
+            Score
+            <b id="score">0</b>
+        </div>
+
+        <div class="stat">
+            Lives
+            <b id="lives">❤️❤️❤️</b>
+        </div>
+
+    </div>
+
+    <div id="message">
+        Press Start to begin!
+    </div>
+
+    <div id="grid"></div>
+
+    <button id="start">
+        Start Game
+    </button>
+
+    <div class="info">
+        This game focuses on working memory and attention.
+    </div>
+
+</div>
+
+
+<script>
+
+const grid = document.getElementById("grid");
+const startButton = document.getElementById("start");
+const message = document.getElementById("message");
+
+const levelDisplay = document.getElementById("level");
+const scoreDisplay = document.getElementById("score");
+const livesDisplay = document.getElementById("lives");
+
+
+let level = 1;
+let score = 0;
+let lives = 3;
+
+let pattern = [];
+let selected = [];
+
+let playing = false;
+
+
+/* -------------------------
+   GRID SIZE
+------------------------- */
+
+function getGridSize() {
+
+    if (level < 5) {
+        return 16;
+    }
+
+    if (level < 9) {
+        return 25;
+    }
+
+    return 36;
+}
+
+
+/* -------------------------
+   CREATE GRID
+------------------------- */
+
+function createGrid() {
+
+    grid.innerHTML = "";
+
+    const numberOfCells = getGridSize();
+
+    const side = Math.sqrt(numberOfCells);
+
+    grid.style.gridTemplateColumns =
+        `repeat(${side}, 1fr)`;
+
+
+    for (let i = 0; i < numberOfCells; i++) {
+
+        const cell = document.createElement("button");
+
+        cell.className = "cell";
+
+        cell.dataset.index = i;
+
+        cell.addEventListener("click", function() {
+
+            selectCell(i, cell);
+
+        });
+
+        grid.appendChild(cell);
+    }
+}
+
+
+/* -------------------------
+   CREATE RANDOM PATTERN
+------------------------- */
+
+function createPattern() {
+
+    const numberOfCells = getGridSize();
+
+    let amount =
+        2 + Math.floor((level + 1) / 2);
+
+
+    /*
+      IMPORTANT:
+      The number of squares can never
+      be more than the number of cells.
+    */
+
+    amount = Math.min(
+        amount,
+        numberOfCells - 1
+    );
+
+
+    const chosen = new Set();
+
+
+    while (chosen.size < amount) {
+
+        const random =
+            Math.floor(
+                Math.random() * numberOfCells
+            );
+
+        chosen.add(random);
+    }
+
+
+    return [...chosen];
+}
+
+
+/* -------------------------
+   START A NEW ROUND
+------------------------- */
+
+function startRound() {
+
+    /*
+      Completely rebuild the board.
+      This removes all old green/red squares.
+    */
+
+    createGrid();
+
+    selected = [];
+
+    pattern = createPattern();
+
+    const cells =
+        [...document.querySelectorAll(".cell")];
+
+
+    playing = false;
+
+    message.textContent =
+        "👀 Memorise the pattern!";
+
+
+    /* Show pattern */
+
+    pattern.forEach(index => {
+
+        cells[index].classList.add("lit");
+
+    });
+
+
+    /*
+      Pattern stays visible for
+      a little less time at higher levels.
+    */
+
+    const displayTime =
+        Math.max(
+            900,
+            1700 - level * 50
+        );
+
+
+    setTimeout(() => {
+
+        cells.forEach(cell => {
+
+            cell.classList.remove("lit");
+
+        });
+
+
+        playing = true;
+
+
+        message.textContent =
+            `Your turn! Find all ${pattern.length} squares.`;
+
+    }, displayTime);
+}
+
+
+/* -------------------------
+   PLAYER SELECTS A CELL
+------------------------- */
+
+function selectCell(index, cell) {
+
+    /*
+      Don't allow clicks when the
+      game isn't waiting for an answer.
+    */
+
+    if (!playing) {
+        return;
+    }
+
+
+    /*
+      IMPORTANT FIX:
+      A square that has already been
+      selected cannot be selected again.
+    */
+
+    if (selected.includes(index)) {
+        return;
+    }
+
+
+    /* Correct square */
+
+    if (pattern.includes(index)) {
+
+        selected.push(index);
+
+        cell.classList.add("correct");
+
+        /*
+          Disable this square so it
+          cannot be clicked again.
+        */
+
+        cell.classList.add("disabled");
+
+
+        score += 10 * level;
+
+        scoreDisplay.textContent = score;
+
+
+        /*
+          Check whether ALL pattern
+          squares have been found.
+        */
+
+        if (selected.length === pattern.length) {
+
+            playing = false;
+
+
+            message.textContent =
+                "🎉 Perfect! Level complete!";
+
+
+            level++;
+
+
+            levelDisplay.textContent =
+                level;
+
+
+            /*
+              Wait, then completely rebuild
+              the board for the next level.
+            */
+
+            setTimeout(() => {
+
+                startRound();
+
+            }, 900);
+        }
+
+    }
+
+
+    /* Wrong square */
+
+    else {
+
+        playing = false;
+
+        cell.classList.add("wrong");
+
+
+        lives--;
+
+
+        livesDisplay.textContent =
+            "❤️".repeat(lives) +
+            "🖤".repeat(3 - lives);
+
+
+        if (lives <= 0) {
+
+            message.textContent =
+                "💥 Game over!";
+
+
+            showAnswer();
+
+
+            setTimeout(() => {
+
+                gameOver();
+
+            }, 1200);
+
+        }
+
+
+        else {
+
+            message.textContent =
+                "❌ Wrong square! Watch carefully...";
+
+
+            showAnswer();
+
+
+            setTimeout(() => {
+
+                startRound();
+
+            }, 1400);
+        }
+    }
+}
+
+
+/* -------------------------
+   SHOW CORRECT ANSWER
+------------------------- */
+
+function showAnswer() {
+
+    const cells =
+        [...document.querySelectorAll(".cell")];
+
+
+    pattern.forEach(index => {
+
+        cells[index].classList.add("lit");
+
+    });
+}
+
+
+/* -------------------------
+   GAME OVER
+------------------------- */
+
+function gameOver() {
+
+    playing = false;
+
+
+    message.textContent =
+        `🏆 Game over! Final score: ${score}`;
+
+
+    startButton.disabled = false;
+
+    startButton.textContent =
+        "Play Again";
+}
+
+
+/* -------------------------
+   START GAME
+------------------------- */
+
+function startGame() {
+
+    level = 1;
+
+    score = 0;
+
+    lives = 3;
+
+
+    levelDisplay.textContent =
+        level;
+
+    scoreDisplay.textContent =
+        score;
+
+    livesDisplay.textContent =
+        "❤️❤️❤️";
+
+
+    startButton.disabled = true;
+
+    startButton.textContent =
+        "Playing...";
+
+
+    startRound();
+}
+
+
+/* -------------------------
+   START BUTTON
+------------------------- */
+
+startButton.addEventListener(
+    "click",
+    startGame
+);
+
+
+/* -------------------------
+   INITIAL BOARD
+------------------------- */
+
+createGrid();
+
+</script>
+
+</body>
+</html>
